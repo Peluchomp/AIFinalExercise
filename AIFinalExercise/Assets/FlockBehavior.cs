@@ -43,7 +43,7 @@ public class AdvancedFlockBehavior : MonoBehaviour
             Vector3 cohesionVector = GetCohesionVector(member);
             Vector3 separationVector = GetSeparationVector(member);
             Vector3 alignmentVector = GetAlignmentVector(member);
-            Vector3 followLeaderVector = GetFollowLeaderVector(member);
+            Vector3 followLeaderVector = GetFollowLeaderPath(member);
 
             // Combine forces
             Vector3 flockingForce = cohesionVector * cohesionStrength
@@ -99,9 +99,23 @@ public class AdvancedFlockBehavior : MonoBehaviour
         return averageDirection.normalized;
     }
 
-    private Vector3 GetFollowLeaderVector(GameObject member)
+    private Vector3 GetFollowLeaderPath(GameObject member)
     {
-        return (leader.transform.position - member.transform.position).normalized * followDistance;
+        NavMeshPath path = new NavMeshPath();
+        Vector3 followPosition = leader.transform.position;
+
+        // Calculate the optimal path to the leader
+        if (NavMesh.CalculatePath(member.transform.position, followPosition, NavMesh.AllAreas, path))
+        {
+            if (path.corners.Length > 1)
+            {
+                // Move towards the first corner of the path
+                return (path.corners[1] - member.transform.position).normalized * followDistance;
+            }
+        }
+
+        // If no path can be calculated, fallback to a direct vector
+        return (followPosition - member.transform.position).normalized * followDistance;
     }
 
     private bool MoveMember(GameObject member, Vector3 force)
