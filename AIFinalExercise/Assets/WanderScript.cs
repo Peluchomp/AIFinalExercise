@@ -5,29 +5,29 @@ using UnityEngine.AI;
 
 public class WanderScript : MonoBehaviour
 {
-    public float wanderRadius = 10f;
-    public float wanderTimer = 5f;
+    public float wanderRadius = 50f; // Larger radius for wider exploration
 
-    private Transform target;
     private NavMeshAgent agent;
-    private float timer;
 
     void OnEnable()
     {
         agent = GetComponent<NavMeshAgent>();
-        timer = wanderTimer;
+        SetNewDestination();
     }
 
     void Update()
     {
-        timer += Time.deltaTime;
-
-        if (timer >= wanderTimer)
+        // Check if the agent has reached the destination
+        if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance && (!agent.hasPath || agent.velocity.sqrMagnitude == 0f))
         {
-            Vector3 newPos = RandomNavSphere(transform.position, wanderRadius, -1);
-            agent.SetDestination(newPos);
-            timer = 0;
+            SetNewDestination();
         }
+    }
+
+    void SetNewDestination()
+    {
+        Vector3 newPos = RandomNavSphere(transform.position, wanderRadius, -1);
+        agent.SetDestination(newPos);
     }
 
     public static Vector3 RandomNavSphere(Vector3 origin, float dist, int layermask)
