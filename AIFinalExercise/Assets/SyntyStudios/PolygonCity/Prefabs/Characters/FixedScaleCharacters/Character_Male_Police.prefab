@@ -1882,6 +1882,7 @@ GameObject:
   - component: {fileID: 3148612905152104197}
   - component: {fileID: 5062367159484984109}
   - component: {fileID: 2700708524576179817}
+  - component: {fileID: -6266410509836808590}
   m_Layer: 0
   m_Name: Character_Male_Police
   m_TagString: Agent
@@ -1949,6 +1950,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   wanderRadius: 50
+  agentAvoidanceRadius: 5
 --- !u!70 &2700708524576179817
 CapsuleCollider2D:
   m_ObjectHideFlags: 0
@@ -1984,6 +1986,27 @@ CapsuleCollider2D:
   m_Offset: {x: 0, y: 0}
   m_Size: {x: 0.5, y: 1}
   m_Direction: 0
+--- !u!95 &-6266410509836808590
+Animator:
+  serializedVersion: 5
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1581182825111960}
+  m_Enabled: 1
+  m_Avatar: {fileID: 9000000, guid: 91028badc63f59f43a9c5bda64fbd608, type: 3}
+  m_Controller: {fileID: 9100000, guid: 8426f2eff4347c44195461478d2e4b3d, type: 2}
+  m_CullingMode: 0
+  m_UpdateMode: 0
+  m_ApplyRootMotion: 0
+  m_LinearVelocityBlending: 0
+  m_StabilizeFeet: 0
+  m_WarningMessage: 
+  m_HasTransformHierarchy: 1
+  m_AllowConstantClipSamplingOptimization: 1
+  m_KeepAnimatorStateOnDisable: 0
+  m_WriteDefaultValuesOnDisable: 0
 --- !u!1 &1630652441913344
 GameObject:
   m_ObjectHideFlags: 0
