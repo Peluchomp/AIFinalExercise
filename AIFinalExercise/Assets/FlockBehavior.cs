@@ -2,15 +2,17 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class FlockBehavior : MonoBehaviour
+public class AdvancedFlockBehavior : MonoBehaviour
 {
-    public GameObject leader; // Assign the leader object here
-    public float followDistance = 5f; // Desired distance from the leader
-    public float separationDistance = 2f; // Desired distance between flock members
-    public float cohesionStrength = 1f; // Strength of cohesion behavior
-    public float separationStrength = 1.5f; // Strength of separation behavior
-    public float alignmentStrength = 1f; // Strength of alignment behavior
-    public float moveSpeed = 5f; // Speed of flock members
+    public GameObject leader; // The leader object
+    public float followDistance = 5f; // Distance flock members should maintain from the leader
+    public float separationDistance = 2f; // Minimum distance between flock members
+    public float cohesionStrength = 1f; // Cohesion force strength
+    public float separationStrength = 1.5f; // Separation force strength
+    public float alignmentStrength = 1f; // Alignment force strength
+    public float wanderRadius = 10f; // Radius for random wandering behavior
+    public float moveSpeed = 5f; // Movement speed of flock members
+    public float avoidanceRadius = 5f; // Radius for avoiding other agents
 
     private NavMeshAgent leaderAgent;
     private List<GameObject> flockMembers;
@@ -41,15 +43,18 @@ public class FlockBehavior : MonoBehaviour
             Vector3 cohesionVector = GetCohesionVector(member);
             Vector3 separationVector = GetSeparationVector(member);
             Vector3 alignmentVector = GetAlignmentVector(member);
+            Vector3 followLeaderVector = GetFollowLeaderVector(member);
 
-            Vector3 followLeaderVector = (leader.transform.position - member.transform.position).normalized * followDistance;
-
+            // Combine forces
             Vector3 flockingForce = cohesionVector * cohesionStrength
                                   + separationVector * separationStrength
                                   + alignmentVector * alignmentStrength
                                   + followLeaderVector;
 
-            MoveMember(member, flockingForce);
+            if (!MoveMember(member, flockingForce))
+            {
+                Wander(member);
+            }
         }
     }
 
@@ -94,17 +99,59 @@ public class FlockBehavior : MonoBehaviour
         return averageDirection.normalized;
     }
 
-    private void MoveMember(GameObject member, Vector3 force)
+    private Vector3 GetFollowLeaderVector(GameObject member)
+    {
+        return (leader.transform.position - member.transform.position).normalized * followDistance;
+    }
+
+    private bool MoveMember(GameObject member, Vector3 force)
     {
         NavMeshAgent agent = member.GetComponent<NavMeshAgent>();
         if (agent != null)
         {
             Vector3 targetPosition = member.transform.position + force;
-            agent.SetDestination(targetPosition);
+
+            if (NavMesh.SamplePosition(targetPosition, out NavMeshHit hit, wanderRadius, NavMesh.AllAreas))
+            {
+                agent.SetDestination(hit.position);
+                return true;
+            }
         }
         else
         {
             member.transform.position += force * moveSpeed * Time.deltaTime;
+        }
+        return false;
+    }
+
+    private void Wander(GameObject member)
+    {
+        NavMeshAgent agent = member.GetComponent<NavMeshAgent>();
+        if (agent != null)
+        {
+            Vector3 wanderTarget = RandomNavSphere(member.transform.position, wanderRadius, -1);
+            agent.SetDestination(wanderTarget);
+        }
+    }
+
+    private Vector3 RandomNavSphere(Vector3 origin, float dist, int layermask)
+    {
+        Vector3 randDirection = Random.insideUnitSphere * dist;
+        randDirection += origin;
+
+        NavMesh.SamplePosition(randDirection, out NavMeshHit navHit, dist, layermask);
+        return navHit.position;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (flockMembers != null)
+        {
+            Gizmos.color = Color.green;
+            foreach (var member in flockMembers)
+            {
+                Gizmos.DrawWireSphere(member.transform.position, avoidanceRadius);
+            }
         }
     }
 }

@@ -1884,7 +1884,7 @@ GameObject:
   - component: {fileID: 2700708524576179817}
   m_Layer: 0
   m_Name: Character_Male_Police
-  m_TagString: Untagged
+  m_TagString: Agent
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

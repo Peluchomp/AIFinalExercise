@@ -2457,7 +2457,7 @@ GameObject:
   - component: {fileID: -7136031817067762675}
   m_Layer: 0
   m_Name: Character_Female_Coat
-  m_TagString: Untagged
+  m_TagString: Agent
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

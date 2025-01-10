@@ -2066,7 +2066,7 @@ GameObject:
   - component: {fileID: 4798789151330423863}
   m_Layer: 0
   m_Name: Character_BusinessMan_Suit
-  m_TagString: Untagged
+  m_TagString: Agent
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

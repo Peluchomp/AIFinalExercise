@@ -2491,7 +2491,7 @@ GameObject:
   - component: {fileID: 6683473971319676283}
   m_Layer: 0
   m_Name: Character_Male_Hoodie
-  m_TagString: Untagged
+  m_TagString: Agent
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
