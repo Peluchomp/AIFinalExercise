@@ -6,6 +6,10 @@ TagManager:
   tags:
   - FlockMember
   - Agent
+  - Red
+  - Green
+  - Robber
+  - Cop
   layers:
   - Default
   - TransparentFX
