@@ -15,16 +15,18 @@ public class AIDriver : MonoBehaviour
 
     [Header("Obstacle Avoidance")]
     public float avoidanceDistance = 10f; // Maximum distance for obstacle detection
-    public float avoidanceAngle = 30f; // Angle of the detection cone
+    public float avoidanceAngle = 8f; // Initial angle of the detection cone
     public LayerMask obstacleLayer; // Layer for detecting obstacles
     public float brakingDistance = 5f; // Distance at which to brake if an obstacle is too close
     public float pathOffset = 1f; // Maximum distance from the path where the car should avoid obstacles
     public float clearPathDistance = 10f; // Minimum distance for a clear path
     public float steeringSpeed = 2f; // Speed of steering rotation to make it smoother
     public float slowDownFactor = 0.5f; // Factor to apply slight slow down while avoiding obstacles
+    public float brakingSmoothness = 0.1f; // Smoothness factor for braking
 
     private Rigidbody carRigidbody;
     private bool isAvoiding = false; // Flag to check if the car is avoiding an obstacle
+    private float dynamicAvoidanceAngle;
 
     private void Start()
     {
@@ -33,6 +35,7 @@ public class AIDriver : MonoBehaviour
         {
             Debug.LogError("RacingCar reference is missing!");
         }
+        dynamicAvoidanceAngle = avoidanceAngle; // Initialize dynamic avoidance angle
     }
 
     private void FixedUpdate()
@@ -84,17 +87,18 @@ public class AIDriver : MonoBehaviour
         }
         else if (speed > maxSpeed || Mathf.Abs(angle) > 60f)
         {
-            // Apply braking by reducing speed without making velocity negative
-            ApplyBrakes(speed);
+            // Apply smoother braking
+            ApplySmoothBrakes(speed);
         }
     }
 
-    private void ApplyBrakes(float currentSpeed)
+    private void ApplySmoothBrakes(float currentSpeed)
     {
-        // Apply a braking force to reduce speed, but ensure it does not reverse the car
+        // Apply a gradual reduction of speed by a percentage
         if (currentSpeed > 0)
         {
-            float brakeForceApplied = Mathf.Min(brakeForce, currentSpeed); // Clamp braking force to not overshoot
+            float targetSpeed = currentSpeed * (1 - brakingSmoothness);
+            float brakeForceApplied = Mathf.Min(brakeForce, currentSpeed - targetSpeed);
             carRigidbody.AddForce(-carRigidbody.velocity.normalized * brakeForceApplied, ForceMode.Acceleration);
         }
     }
@@ -105,10 +109,11 @@ public class AIDriver : MonoBehaviour
         Collider[] nearbyObjects = Physics.OverlapSphere(transform.position, avoidanceDistance, obstacleLayer);
 
         isAvoiding = false; // Reset the flag each frame
+        dynamicAvoidanceAngle = avoidanceAngle; // Reset to initial avoidance angle each frame
 
         foreach (Collider obj in nearbyObjects)
         {
-            // If the object has the relevant tags (including "Agent")
+            // If the object has the relevant tags (including "Agent" or "FlockMember")
             if (obj.CompareTag("Agent") || obj.CompareTag("carsemaforon") || obj.CompareTag("FlockMember"))
             {
                 Vector3 toObstacle = obj.transform.position - transform.position;
@@ -120,27 +125,23 @@ public class AIDriver : MonoBehaviour
                     // If the obstacle is near the path, avoid it
                     isAvoiding = true;
 
-                    // If the obstacle is too close, apply slight braking
-                    if (distanceToObstacle <= brakingDistance)
-                    {
-                        ApplyBrakes(carRigidbody.velocity.magnitude); // Brake if too close
-                    }
-                    else
-                    {
-                        // Steer to avoid the obstacle smoothly, but only slow down slightly
-                        RotateToAvoid(toObstacle, distanceToObstacle);
-                    }
+                    // Widen the avoidance cone to understand the situation better
+                    dynamicAvoidanceAngle = Mathf.Lerp(avoidanceAngle, 60f, distanceToObstacle / avoidanceDistance);
 
-                    Debug.DrawLine(transform.position, obj.transform.position, Color.red);
+                    // Apply smooth braking and wait for the path to be clear
+                    ApplySmoothBrakes(carRigidbody.velocity.magnitude);
+                    break; // Stop further steering or acceleration until the path is clear
                 }
+
+                // Draw line to detected obstacle
+                Debug.DrawLine(transform.position, obj.transform.position, Color.red);
             }
         }
 
-        // If no obstacles are detected in the path, the car can drive normally
-        if (isAvoiding == false && CheckClearPath())
+        // Once the obstacle is avoided, return to normal avoidance cone size
+        if (!isAvoiding)
         {
-            // Once clear, resume following the waypoint
-            Debug.Log("Path is clear, resuming waypoint navigation.");
+            dynamicAvoidanceAngle = avoidanceAngle;
         }
     }
 
@@ -149,7 +150,7 @@ public class AIDriver : MonoBehaviour
         // Check if the obstacle is within the cone's angle and distance
         float angleToObstacle = Vector3.Angle(transform.forward, toObstacle);
 
-        if (angleToObstacle <= avoidanceAngle && distanceToObstacle <= avoidanceDistance)
+        if (angleToObstacle <= dynamicAvoidanceAngle && distanceToObstacle <= avoidanceDistance)
         {
             return true;
         }
@@ -160,7 +161,7 @@ public class AIDriver : MonoBehaviour
     private void RotateToAvoid(Vector3 toObstacle, float distanceToObstacle)
     {
         // Calculate a direction to steer the car away from the obstacle
-        Vector3 avoidanceDirection = -toObstacle.normalized;
+        Vector3 avoidanceDirection = (Vector3.Cross(transform.up, toObstacle)).normalized;
 
         // Gradually steer the car using Quaternion.RotateTowards
         Quaternion targetRotation = Quaternion.LookRotation(avoidanceDirection);
@@ -206,8 +207,8 @@ public class AIDriver : MonoBehaviour
         Gizmos.DrawWireSphere(transform.position, avoidanceDistance); // Show the avoidance distance
         Gizmos.color = Color.red;
         // Draw the cone
-        Vector3 leftEdge = Quaternion.Euler(0, -avoidanceAngle, 0) * transform.forward * avoidanceDistance;
-        Vector3 rightEdge = Quaternion.Euler(0, avoidanceAngle, 0) * transform.forward * avoidanceDistance;
+        Vector3 leftEdge = Quaternion.Euler(0, -dynamicAvoidanceAngle, 0) * transform.forward * avoidanceDistance;
+        Vector3 rightEdge = Quaternion.Euler(0, dynamicAvoidanceAngle, 0) * transform.forward * avoidanceDistance;
         Gizmos.DrawLine(transform.position, transform.position + leftEdge);
         Gizmos.DrawLine(transform.position, transform.position + rightEdge);
     }
