@@ -11,6 +11,7 @@ TagManager:
   - Robber
   - Cop
   - Path
+  - carsemaforon
   layers:
   - Default
   - TransparentFX
