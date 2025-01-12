@@ -39,7 +39,7 @@ public class CarPatrollBehavior : MonoBehaviour
         {
             isStopped = true;
             agent.isStopped = true;
-            Debug.Log("lalalal");
+            //Debug.Log("lalalal");
         }
         if (other.CompareTag("Green"))
         {

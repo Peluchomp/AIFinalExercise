@@ -21,10 +21,10 @@ public class RacingCar : MonoBehaviour
         }
         nodes = waypoints.nodes;
 
-        Debug.Log($"Nodes loaded: {nodes.Count}");
+        //Debug.Log($"Nodes loaded: {nodes.Count}");
         if (nodes.Count == 0)
         {
-            Debug.LogError("Waypoints list is empty! Check trackWaypoints script.");
+            //Debug.LogError("Waypoints list is empty! Check trackWaypoints script.");
         }
     }
 
@@ -56,15 +56,15 @@ public class RacingCar : MonoBehaviour
             distanceToWaypoint = Vector3.Distance(carPosition, currentWaypoint.position);
         }
 
-        Debug.Log($"Current Waypoint: {currentWaypoint.name}, Distance: {distanceToWaypoint}");
+        //Debug.Log($"Current Waypoint: {currentWaypoint.name}, Distance: {distanceToWaypoint}");
     }
 
     private void OnDrawGizmos()
     {
         if (currentWaypoint != null)
         {
-            Gizmos.color = Color.green;
-            Gizmos.DrawWireSphere(currentWaypoint.position, 3f);
+            //Gizmos.color = Color.green;
+            //Gizmos.DrawWireSphere(currentWaypoint.position, 3f);
         }
     }
 }

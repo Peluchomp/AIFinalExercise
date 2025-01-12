@@ -8,7 +8,7 @@ public class trackWaypoints : MonoBehaviour
 
     public List<Transform> nodes = new List<Transform>();
 
-    public void OnDrawGizmos()
+    public void OnDrawGizmosSelected()
     {
         if (!Application.isEditor) return; // Ensure Gizmos only draw in the editor
 
@@ -31,10 +31,10 @@ public class trackWaypoints : MonoBehaviour
                 ? nodes[nodes.Count - 1].position
                 : nodes[i - 1].position;
 
-            Gizmos.DrawLine(previousWaypoint, currentWaypoint); // Draw line
-            Gizmos.DrawSphere(currentWaypoint, SphereRadius);  // Draw sphere
+            //Gizmos.DrawLine(previousWaypoint, currentWaypoint); // Draw line
+            //Gizmos.DrawSphere(currentWaypoint, SphereRadius);  // Draw sphere
 
-            Debug.Log($"Drawing Gizmo at Waypoint {i}: {currentWaypoint}");
+            //Debug.Log($"Drawing Gizmo at Waypoint {i}: {currentWaypoint}");
         }
     }
 }

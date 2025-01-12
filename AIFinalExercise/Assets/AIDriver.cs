@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 [RequireComponent(typeof(Rigidbody))]
 public class AIDriver : MonoBehaviour
@@ -8,25 +9,28 @@ public class AIDriver : MonoBehaviour
     public RacingCar racingCar;
 
     [Header("Car Settings")]
-    public float maxSpeed = 15f;
-    public float accelerationForce = 10f;
-    public float steeringSensitivity = 2f;
-    public float brakeForce = 30f;
+    public float maxSpeed = 2000f;
+    public float accelerationForce = 1000f;
+    public float steeringSensitivity = 5f;
+    public float brakeForce = 1000f;
 
     [Header("Obstacle Avoidance")]
-    public float avoidanceDistance = 10f; // Maximum distance for obstacle detection
-    public float avoidanceAngle = 8f; // Initial angle of the detection cone
-    public LayerMask obstacleLayer; // Layer for detecting obstacles
-    public float brakingDistance = 5f; // Distance at which to brake if an obstacle is too close
-    public float pathOffset = 1f; // Maximum distance from the path where the car should avoid obstacles
-    public float clearPathDistance = 10f; // Minimum distance for a clear path
-    public float steeringSpeed = 2f; // Speed of steering rotation to make it smoother
-    public float slowDownFactor = 0.5f; // Factor to apply slight slow down while avoiding obstacles
-    public float brakingSmoothness = 0.1f; // Smoothness factor for braking
+    public float detectionDistance = 20f;
+    public float avoidanceDistance = 10f;
+    public float detectionAngle = 25f;
+    public float avoidanceAngle = 20f;
+    public LayerMask obstacleLayer;
+    public float brakingDistance = 6f;
+    public float pathOffset = 10f;
+    public float steeringSpeed = 3f;
+    public float brakingSmoothness = 14f;
 
     private Rigidbody carRigidbody;
-    private bool isAvoiding = false; // Flag to check if the car is avoiding an obstacle
-    private float dynamicAvoidanceAngle;
+
+    // FSM States
+    private enum State { RecklessDriving, Driving, Braking, CarInFront }
+    private State currentState = State.RecklessDriving;
+    private State previousState;
 
     private void Start()
     {
@@ -35,66 +39,222 @@ public class AIDriver : MonoBehaviour
         {
             Debug.LogError("RacingCar reference is missing!");
         }
-        dynamicAvoidanceAngle = avoidanceAngle; // Initialize dynamic avoidance angle
+
+        Debug.Log($"Initial state: {currentState}");
     }
 
     private void FixedUpdate()
     {
-        if (racingCar.currentWaypoint == null)
+        if (currentState != previousState)
         {
-            Debug.LogWarning("No current waypoint set!");
+            Debug.Log($"Transitioned from {previousState} to {currentState}");
+            HandleStateEntry(currentState);
+            previousState = currentState;
+        }
+
+        switch (currentState)
+        {
+            case State.RecklessDriving:
+                RecklessDrivingBehavior();
+                CheckForStateTransition();
+                break;
+
+            case State.Driving:
+                DrivingBehavior();
+                CheckForStateTransition();
+                break;
+
+            case State.Braking:
+                BrakingBehavior();
+                CheckForStateTransition();
+                break;
+
+            case State.CarInFront:
+                CarInFrontBehavior();
+                CheckForStateTransition();
+                break;
+        }
+    }
+
+    private void HandleStateEntry(State state)
+    {
+        switch (state)
+        {
+            case State.RecklessDriving:
+                maxSpeed = 2000f;
+                accelerationForce = 1000f;
+                brakeForce = 1000f;
+                steeringSensitivity = 5f;
+                steeringSpeed = 3f;
+                brakingSmoothness = 14f;
+                brakingDistance = 6f;
+                if (racingCar != null) racingCar.desiredDistance = 14f;
+                break;
+
+            case State.Driving:
+                maxSpeed = 1000;
+                accelerationForce = 500;
+                brakeForce = 1000f;
+                steeringSensitivity = 5f;
+                steeringSpeed = 3f;
+                brakingSmoothness = 14f;
+                brakingDistance = 6f;
+                if (racingCar != null) racingCar.desiredDistance = 10f;
+                break;
+
+            case State.CarInFront:
+                maxSpeed = 220;
+                accelerationForce = 150;
+                brakeForce = 800f;
+                steeringSensitivity = 6f;
+                steeringSpeed = 5f;
+                brakingSmoothness = 10f;
+                brakingDistance = 6f;
+                if (racingCar != null) racingCar.desiredDistance = 17f;
+                break;
+
+            case State.Braking:
+                brakingSmoothness = 7f;
+                brakingDistance = 6f;
+                brakeForce = 2000f;
+                break;
+        }
+    }
+
+    private void RecklessDrivingBehavior()
+    {
+        DriveTowardsWaypoint();
+    }
+
+    private void DrivingBehavior()
+    {
+        DriveTowardsWaypoint();
+    }
+
+    private void BrakingBehavior()
+    {
+        ApplySmoothBrakes(carRigidbody.velocity.magnitude);
+    }
+
+    private void CarInFrontBehavior()
+    {
+        if (racingCar == null || racingCar.currentWaypoint == null) return;
+
+        Collider carInFront = null;
+        Collider[] detectedObjects = Physics.OverlapSphere(transform.position, detectionDistance, obstacleLayer);
+
+        foreach (Collider obj in detectedObjects)
+        {
+            if (obj.CompareTag("carsemaforon"))
+            {
+                carInFront = obj;
+                break;
+            }
+        }
+
+        if (carInFront == null) return;
+
+        Vector3 toWaypoint = racingCar.currentWaypoint.position - transform.position;
+        Vector3 toCarInFront = carInFront.transform.position - transform.position;
+
+        Vector3 leftOffset = Vector3.Cross(Vector3.up, toCarInFront).normalized * pathOffset;
+        Vector3 rightOffset = -leftOffset;
+
+        Vector3 leftDetour = transform.position + leftOffset;
+        Vector3 rightDetour = transform.position + rightOffset;
+
+        Vector3 validLeftDetour = GetValidNavMeshPosition(leftDetour);
+        Vector3 validRightDetour = GetValidNavMeshPosition(rightDetour);
+
+        float leftPathLength = Vector3.Distance(validLeftDetour, racingCar.currentWaypoint.position);
+        float rightPathLength = Vector3.Distance(validRightDetour, racingCar.currentWaypoint.position);
+
+        Vector3 chosenDirection = (leftPathLength < rightPathLength) ? validLeftDetour : validRightDetour;
+
+        Vector3 directionToDetour = (chosenDirection - transform.position).normalized;
+
+        carRigidbody.MoveRotation(Quaternion.RotateTowards(carRigidbody.rotation, Quaternion.LookRotation(directionToDetour), steeringSpeed * Time.deltaTime));
+        carRigidbody.AddForce(transform.forward * accelerationForce, ForceMode.Acceleration);
+    }
+
+    private void CheckForStateTransition()
+    {
+        Collider[] detectedObjects = Physics.OverlapSphere(transform.position, detectionDistance, obstacleLayer);
+
+        bool hasDetectionObstacle = false;
+        bool hasAvoidanceObstacle = false;
+        bool hasCarInFront = false;
+
+        foreach (Collider obj in detectedObjects)
+        {
+            Vector3 toObject = obj.transform.position - transform.position;
+            float distanceToObject = toObject.magnitude;
+            float angleToObject = Vector3.Angle(transform.forward, toObject);
+
+            bool inDetectionCone = angleToObject <= detectionAngle && distanceToObject <= detectionDistance;
+            bool inAvoidanceCone = angleToObject <= avoidanceAngle && distanceToObject <= avoidanceDistance;
+
+            if (inAvoidanceCone)
+            {
+                if (obj.CompareTag("Agent") || obj.CompareTag("FlockMember") || obj.CompareTag("Robber") || obj.CompareTag("Cop"))
+                {
+                    currentState = State.Braking;
+                    return;
+                }
+
+                if (obj.CompareTag("carsemaforon"))
+                {
+                    hasCarInFront = true;
+                }
+            }
+
+            if (inDetectionCone)
+            {
+                if (obj.CompareTag("Agent") || obj.CompareTag("FlockMember") || obj.CompareTag("Robber") || obj.CompareTag("Cop"))
+                {
+                    hasDetectionObstacle = true;
+                }
+            }
+        }
+
+        if (hasCarInFront && !hasDetectionObstacle)
+        {
+            currentState = State.CarInFront;
             return;
         }
 
-        DebugGroundContact();
-        AvoidObstacles();
-
-        // If we're not avoiding an obstacle, drive towards the waypoint
-        if (!isAvoiding)
+        if (hasDetectionObstacle)
         {
-            DriveTowardsWaypoint();
+            currentState = State.Driving;
+            return;
         }
 
-        CheckWaypointReached();
-    }
-
-    private void DebugGroundContact()
-    {
-        Ray ray = new Ray(transform.position, Vector3.down);
-        if (!Physics.Raycast(ray, out RaycastHit hit, 1.5f))
-        {
-            Debug.LogWarning("Car is not grounded!");
-        }
+        currentState = State.RecklessDriving;
     }
 
     private void DriveTowardsWaypoint()
     {
-        Vector3 targetPosition = racingCar.currentWaypoint.position;
+        if (racingCar == null || racingCar.currentWaypoint == null) return;
+
+        Vector3 targetPosition = GetValidNavMeshPosition(racingCar.currentWaypoint.position);
         Vector3 directionToWaypoint = (targetPosition - transform.position).normalized;
 
         Debug.DrawLine(transform.position, targetPosition, Color.green);
-        Debug.DrawRay(transform.position, transform.forward * 5f, Color.blue);
 
-        Vector3 forward = transform.forward;
-        float angle = Vector3.SignedAngle(forward, directionToWaypoint, Vector3.up);
+        float angle = Vector3.SignedAngle(transform.forward, directionToWaypoint, Vector3.up);
         float steer = Mathf.Clamp(angle / 45f, -1f, 1f);
+
         carRigidbody.MoveRotation(carRigidbody.rotation * Quaternion.Euler(0, steer * steeringSensitivity, 0));
 
-        float speed = carRigidbody.velocity.magnitude;
-        if (Mathf.Abs(angle) < 30f && speed < maxSpeed)
+        float currentSpeed = carRigidbody.velocity.magnitude;
+        if (currentSpeed < maxSpeed)
         {
             carRigidbody.AddForce(transform.forward * accelerationForce, ForceMode.Acceleration);
-        }
-        else if (speed > maxSpeed || Mathf.Abs(angle) > 60f)
-        {
-            // Apply smoother braking
-            ApplySmoothBrakes(speed);
         }
     }
 
     private void ApplySmoothBrakes(float currentSpeed)
     {
-        // Apply a gradual reduction of speed by a percentage
         if (currentSpeed > 0)
         {
             float targetSpeed = currentSpeed * (1 - brakingSmoothness);
@@ -103,113 +263,51 @@ public class AIDriver : MonoBehaviour
         }
     }
 
-    private void AvoidObstacles()
+    private Vector3 GetValidNavMeshPosition(Vector3 position)
     {
-        // Get all colliders in the detection cone
-        Collider[] nearbyObjects = Physics.OverlapSphere(transform.position, avoidanceDistance, obstacleLayer);
-
-        isAvoiding = false; // Reset the flag each frame
-        dynamicAvoidanceAngle = avoidanceAngle; // Reset to initial avoidance angle each frame
-
-        foreach (Collider obj in nearbyObjects)
+        if (NavMesh.SamplePosition(position, out NavMeshHit hit, 5f, NavMesh.AllAreas))
         {
-            // If the object has the relevant tags (including "Agent" or "FlockMember")
-            if (obj.CompareTag("Agent") || obj.CompareTag("carsemaforon") || obj.CompareTag("FlockMember"))
-            {
-                Vector3 toObstacle = obj.transform.position - transform.position;
-                float distanceToObstacle = toObstacle.magnitude;
-
-                // Check if the obstacle is within the cone
-                if (IsInAvoidanceCone(toObstacle, distanceToObstacle))
-                {
-                    // If the obstacle is near the path, avoid it
-                    isAvoiding = true;
-
-                    // Widen the avoidance cone to understand the situation better
-                    dynamicAvoidanceAngle = Mathf.Lerp(avoidanceAngle, 60f, distanceToObstacle / avoidanceDistance);
-
-                    // Apply smooth braking and wait for the path to be clear
-                    ApplySmoothBrakes(carRigidbody.velocity.magnitude);
-                    break; // Stop further steering or acceleration until the path is clear
-                }
-
-                // Draw line to detected obstacle
-                Debug.DrawLine(transform.position, obj.transform.position, Color.red);
-            }
+            return hit.position;
         }
-
-        // Once the obstacle is avoided, return to normal avoidance cone size
-        if (!isAvoiding)
-        {
-            dynamicAvoidanceAngle = avoidanceAngle;
-        }
-    }
-
-    private bool IsInAvoidanceCone(Vector3 toObstacle, float distanceToObstacle)
-    {
-        // Check if the obstacle is within the cone's angle and distance
-        float angleToObstacle = Vector3.Angle(transform.forward, toObstacle);
-
-        if (angleToObstacle <= dynamicAvoidanceAngle && distanceToObstacle <= avoidanceDistance)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private void RotateToAvoid(Vector3 toObstacle, float distanceToObstacle)
-    {
-        // Calculate a direction to steer the car away from the obstacle
-        Vector3 avoidanceDirection = (Vector3.Cross(transform.up, toObstacle)).normalized;
-
-        // Gradually steer the car using Quaternion.RotateTowards
-        Quaternion targetRotation = Quaternion.LookRotation(avoidanceDirection);
-        carRigidbody.MoveRotation(Quaternion.RotateTowards(carRigidbody.rotation, targetRotation, steeringSpeed * Time.deltaTime));
-
-        // Apply slight braking based on the distance to the obstacle (only if necessary)
-        if (distanceToObstacle <= avoidanceDistance * 0.7f) // If too close, slow down a bit
-        {
-            float speed = carRigidbody.velocity.magnitude;
-            if (speed > 0)
-            {
-                carRigidbody.AddForce(-carRigidbody.velocity.normalized * speed * slowDownFactor, ForceMode.Acceleration);
-            }
-        }
-    }
-
-    private bool CheckClearPath()
-    {
-        // Raycast ahead to check if the path is clear
-        RaycastHit hit;
-        if (Physics.Raycast(transform.position, transform.forward, out hit, clearPathDistance, obstacleLayer))
-        {
-            // If we hit something within clearPathDistance, return false (path is not clear)
-            return false;
-        }
-        return true; // Path is clear
-    }
-
-    private void CheckWaypointReached()
-    {
-        Vector3 targetPosition = racingCar.currentWaypoint.position;
-        float distanceToWaypoint = Vector3.Distance(transform.position, targetPosition);
-
-        if (distanceToWaypoint < racingCar.desiredDistance)
-        {
-            racingCar.calculateDistanceofWaypoints();
-        }
+        return position;
     }
 
     private void OnDrawGizmos()
     {
+        // Detection Distance and Angle
         Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, avoidanceDistance); // Show the avoidance distance
+        Gizmos.DrawWireSphere(transform.position, detectionDistance);
+        Vector3 detectionLeftEdge = Quaternion.Euler(0, -detectionAngle, 0) * transform.forward * detectionDistance;
+        Vector3 detectionRightEdge = Quaternion.Euler(0, detectionAngle, 0) * transform.forward * detectionDistance;
+        Gizmos.DrawLine(transform.position, transform.position + detectionLeftEdge);
+        Gizmos.DrawLine(transform.position, transform.position + detectionRightEdge);
+
+        // Avoidance Distance and Angle
         Gizmos.color = Color.red;
-        // Draw the cone
-        Vector3 leftEdge = Quaternion.Euler(0, -dynamicAvoidanceAngle, 0) * transform.forward * avoidanceDistance;
-        Vector3 rightEdge = Quaternion.Euler(0, dynamicAvoidanceAngle, 0) * transform.forward * avoidanceDistance;
-        Gizmos.DrawLine(transform.position, transform.position + leftEdge);
-        Gizmos.DrawLine(transform.position, transform.position + rightEdge);
+        Gizmos.DrawWireSphere(transform.position, avoidanceDistance);
+        Vector3 avoidanceLeftEdge = Quaternion.Euler(0, -avoidanceAngle, 0) * transform.forward * avoidanceDistance;
+        Vector3 avoidanceRightEdge = Quaternion.Euler(0, avoidanceAngle, 0) * transform.forward * avoidanceDistance;
+        Gizmos.DrawLine(transform.position, transform.position + avoidanceLeftEdge);
+        Gizmos.DrawLine(transform.position, transform.position + avoidanceRightEdge);
+
+        // Braking Distance
+        Gizmos.color = Color.blue;
+        Gizmos.DrawWireSphere(transform.position, brakingDistance);
+
+        // Path Offset Visualization
+        Gizmos.color = Color.green;
+        Vector3 toWaypoint = racingCar != null && racingCar.currentWaypoint != null
+            ? (racingCar.currentWaypoint.position - transform.position).normalized
+            : transform.forward;
+        Vector3 pathOffsetDirection = Vector3.Cross(toWaypoint, Vector3.up).normalized * pathOffset;
+        Gizmos.DrawLine(transform.position, transform.position + pathOffsetDirection);
+
+        // Current Waypoint
+        if (racingCar != null && racingCar.currentWaypoint != null)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawLine(transform.position, racingCar.currentWaypoint.position);
+            Gizmos.DrawWireSphere(racingCar.currentWaypoint.position, 1f);
+        }
     }
 }
