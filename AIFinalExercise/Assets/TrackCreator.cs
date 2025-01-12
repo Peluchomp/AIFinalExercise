@@ -8,7 +8,7 @@ public class trackWaypoints : MonoBehaviour
 
     public List<Transform> nodes = new List<Transform>();
 
-    public void OnDrawGizmosSelected()
+    public void OnDrawGizmos()
     {
         if (!Application.isEditor) return; // Ensure Gizmos only draw in the editor
 
