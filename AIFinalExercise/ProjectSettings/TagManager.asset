@@ -10,6 +10,7 @@ TagManager:
   - Green
   - Robber
   - Cop
+  - Path
   layers:
   - Default
   - TransparentFX
